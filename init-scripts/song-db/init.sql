@@ -1,0 +1,1 @@
+CREATE TABLE song ( id SERIAL PRIMARY KEY, name VARCHAR(100), artist VARCHAR(100), album VARCHAR(100), length VARCHAR(100), year VARCHAR(100), resource_id VARCHAR(100) );
