@@ -5,8 +5,6 @@ import com.epam.microservice_song.dto.SongResponseDTO;
 import com.epam.microservice_song.model.Song;
 import com.epam.microservice_song.service.SongService;
 import com.epam.microservice_song.utils.SongMapper;
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +12,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,16 +60,14 @@ public class SongController {
             Map<String, List<Integer>> responseBody = new HashMap<>();
             List<Integer> deletedList = new ArrayList<>();
             for (String s : idList) {
-                int intId = Integer.valueOf(s);
+                int intId = Integer.parseInt(s);
                 if (songService.existById(intId)) {
                     songService.removeSongsById(intId);
                     deletedList.add(intId);
                 }
             }
             responseBody.put("id", deletedList);
-            ResponseEntity<Map<String, List<Integer>>> responseEntity =
-                    new ResponseEntity<>(responseBody, HttpStatus.OK);
-            return responseEntity;
+            return new ResponseEntity<>(responseBody, HttpStatus.OK);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please, check the request");
         }
@@ -80,7 +75,7 @@ public class SongController {
 
     private boolean validateId(String id) {
         for(int i = 0; i < id.length(); i++){
-            if (Character.isLetter(Character.valueOf(id.charAt(i))))
+            if (Character.isLetter(id.charAt(i)))
                 return false;
         }
         return id.length() <= 200;
