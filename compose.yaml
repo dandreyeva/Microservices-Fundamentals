@@ -11,7 +11,7 @@ services:
       - ./init-scripts/resource-db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./postgres-data-resource:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - "5432:5432"
     dns:
       - 10.0.2.20
     networks:
@@ -29,7 +29,25 @@ services:
       - ./init-scripts/song-db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - ./postgres-data-song:/var/lib/postgresql/data
     ports:
-      - '5433:5432'
+      - "5433:5432"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
+  resource-proc-app:
+    container_name: resource_proc_app
+    build:
+      context: microservice-resource-processor
+      dockerfile: Dockerfile
+    links:
+      - rabbitmq
+    ports:
+      - "9292:9292"
+    environment:
+      - RABBIT_HOST=rabbitmq
+    depends_on:
+      - rabbitmq
     dns:
       - 10.0.2.20
     networks:
@@ -40,13 +58,16 @@ services:
     build:
       context: microservice-resource
       dockerfile: Dockerfile
+    links:
+      - rabbitmq
     ports:
-      - '9090:9090'
+      - "9090:9090"
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL_RESOURCE}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME_RESOURCE}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD_RESOURCE}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO_RESOURCE}
+      - RABBIT_HOST=rabbitmq
     depends_on:
       - psql-db-resource
     dns:
@@ -55,11 +76,12 @@ services:
       - ls
 
   song-app:
+    container_name: song_app
     build:
       context: microservice-song
       dockerfile: Dockerfile
     ports:
-      - '8081-8090:8080'
+      - "8081-8090:8080"
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL_SONG}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME_SONG}
@@ -84,6 +106,17 @@ services:
     networks:
        ls:
          ipv4_address: 10.0.2.20
+
+  rabbitmq:
+    image: rabbitmq:3.8.3-management-alpine
+    ports:
+      - "5672:5672" #JMS Port
+      - "15672:15672"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
 
 networks:
   ls:
