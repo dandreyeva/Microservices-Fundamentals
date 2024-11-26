@@ -1,13 +1,13 @@
 package com.epam.microservice_resource.controller;
 
 import com.epam.microservice_resource.model.Resource;
+import com.epam.microservice_resource.service.MessageService;
 import com.epam.microservice_resource.service.ResourceService;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -25,15 +25,18 @@ public class ResourceController {
     private S3Client s3Client;
     @Value("${bucket.name}")
     private String bucketName;
+    private MessageService messageService;
 
 
-    public ResourceController(ResourceService resourceService, S3Client s3Client) {
+    public ResourceController(ResourceService resourceService,
+                              S3Client s3Client, MessageService messageService) {
         this.resourceService = resourceService;
         this.s3Client = s3Client;
+        this.messageService = messageService;
     }
 
     @PostMapping(consumes = "audio/mpeg", produces = "application/json")
-    public ResponseEntity<Map<String, Integer>> createResources(@RequestBody byte[] audioData,
+    public ResponseEntity<Map<String, String>> createResources(@RequestBody byte[] audioData,
                                                                 @RequestHeader("fileName") String keyName) {
         var tika = new Tika();
         var type = tika.detect(audioData);//check valid and type of data
@@ -52,11 +55,15 @@ public class ResourceController {
                         HttpStatus.BAD_GATEWAY, "Please, check S3 bucket settings");
             }
 
-            Map<String, Integer> responseBody;
+            Map<String, String> responseBody;
             var resource = new Resource();
             resource.setName(keyName);
-            var  id = resourceService.saveResource(resource).getId();
-            responseBody = Map.of("id", id);
+            var  id = resourceService.saveResource(resource).getId().toString();
+
+            Boolean result = messageService.sendQueueMessage("resourceIdQueue", id);
+            responseBody = Map.of("id", id,
+                                  "toQueue", result.toString());
+
             return new ResponseEntity<>(responseBody, HttpStatus.OK);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please, check the request");
@@ -135,7 +142,7 @@ public class ResourceController {
 
     private boolean validateId(String id) {
         for(var i = 0; i < id.length(); i++){
-            if (Character.isLetter(Character.valueOf(id.charAt(i))))
+            if (Character.isLetter(id.charAt(i)))
                 return false;
         }
         return id.length() <= 200;
