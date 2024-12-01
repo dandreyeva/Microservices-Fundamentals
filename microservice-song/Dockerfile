@@ -9,3 +9,4 @@ FROM eclipse-temurin:21.0.4_7-jre-alpine AS runtime
 COPY --from=build /build/target/*.jar ./app-song.jar
 EXPOSE 8080
 CMD ["java", "-jar", "./app-song.jar"]
+RUN apk --no-cache add curl

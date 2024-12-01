@@ -1,7 +1,9 @@
 services:
   psql-db-resource:
     image: postgres:alpine3.20
-    container_name: postgres-resource
+    container_name: "${RDB_DOCKER_NAME}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
     restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER_R}
@@ -19,7 +21,9 @@ services:
 
   psql-db-song:
     image: postgres:alpine3.20
-    container_name: postgres-song
+    container_name: "${SDB_DOCKER_NAME}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
     restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER_S}
@@ -36,7 +40,7 @@ services:
       - ls
 
   resource-proc-app:
-    container_name: resource_proc_app
+    container_name: "${RESOURCE_PROC_DOCKER_NAME}"
     build:
       context: microservice-resource-processor
       dockerfile: Dockerfile
@@ -47,14 +51,21 @@ services:
     environment:
       - RABBIT_HOST=rabbitmq
     depends_on:
-      - rabbitmq
+      resource-app:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      song-app:
+        condition: service_healthy
     dns:
       - 10.0.2.20
     networks:
       - ls
 
   resource-app:
-    container_name: resource_app
+    container_name: "${RESOURCE_DOCKER_NAME}"
+    healthcheck:
+      test: curl --fail http://localhost:9090/ || exit 1
     build:
       context: microservice-resource
       dockerfile: Dockerfile
@@ -69,34 +80,47 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO_RESOURCE}
       - RABBIT_HOST=rabbitmq
     depends_on:
-      - psql-db-resource
+      psql-db-resource:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     dns:
       - 10.0.2.20
     networks:
       - ls
 
   song-app:
-    container_name: song_app
+    container_name: "${SONG_DOCKER_NAME}"
+    healthcheck:
+      test: curl --fail http://localhost:8080/ || exit 1
     build:
       context: microservice-song
       dockerfile: Dockerfile
     ports:
-      - "8081-8090:8080"
+      - "8080:8080"
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL_SONG}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME_SONG}
       - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD_SONG}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO_SONG}
     depends_on:
-      - psql-db-song
+      psql-db-song:
+        condition: service_healthy
     dns:
       - 10.0.2.20
     networks:
       - ls
 
   localstack:
-    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+    container_name: "${LOCALSTACK_DOCKER_NAME}"
     image: localstack/localstack:s3-latest
+    healthcheck:
+      test: curl --fail http://127.0.0.1:4566/ || exit 1
+      interval: 2s
+      retries: 5
+      timeout: 10s
     ports:
        - "127.0.0.1:4566:4566"
     environment:
@@ -109,6 +133,8 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.8.3-management-alpine
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
     ports:
       - "5672:5672" #JMS Port
       - "15672:15672"
