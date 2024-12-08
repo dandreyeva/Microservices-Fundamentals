@@ -39,6 +39,18 @@ services:
     networks:
       - ls
 
+  gateway-app:
+    container_name: "${GATEWAY_DOCKER_NAME}"
+    build:
+      context: gateway-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
   resource-proc-app:
     container_name: "${RESOURCE_PROC_DOCKER_NAME}"
     build:
@@ -94,12 +106,12 @@ services:
   song-app:
     container_name: "${SONG_DOCKER_NAME}"
     healthcheck:
-      test: curl --fail http://localhost:8080/ || exit 1
+      test: curl --fail http://localhost:8580/ || exit 1
     build:
       context: microservice-song
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "8580:8580"
     environment:
       - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL_SONG}
       - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME_SONG}
@@ -138,6 +150,18 @@ services:
     ports:
       - "5672:5672" #JMS Port
       - "15672:15672"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
+  eureka-app:
+    container_name: eureka_app
+    build:
+      context: eureka-service
+      dockerfile: Dockerfile
+    ports:
+      - '8761:8761'
     dns:
       - 10.0.2.20
     networks:

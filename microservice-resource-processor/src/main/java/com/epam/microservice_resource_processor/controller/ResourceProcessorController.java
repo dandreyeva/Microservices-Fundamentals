@@ -5,6 +5,9 @@ import org.apache.tika.Tika;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.*;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.epam.microservice_resource_processor.utils.ResourceMetadata.*;
@@ -25,11 +29,18 @@ public class ResourceProcessorController {
     private RetryTemplate retryTemplate;
     private int counter_resource = 0;
     private int counter_song = 0;
+    @Value("${spring.application.microservice-song.name}")
+    private String songServiceName;
+    @Value("${spring.application.microservice-resource.name}")
+    private String resourceServiceName;
+    private DiscoveryClient discoveryClient;
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceProcessorController.class);
 
-    public ResourceProcessorController(RestTemplate restTemplate, RetryTemplate retryTemplate) {
+    public ResourceProcessorController(RestTemplate restTemplate, RetryTemplate retryTemplate,
+                                       DiscoveryClient discoveryClient) {
         this.restTemplate = restTemplate;
         this.retryTemplate = retryTemplate;
+        this.discoveryClient = discoveryClient;
     }
     @RabbitListener(queues = ("resourceIdQueue"))
     public void receiveProduct(String message) {
@@ -45,6 +56,7 @@ public class ResourceProcessorController {
         var tika = new Tika();
         String type = tika.detect(resource);//check valid and type of data
         Map<String, String> metadataMap = mp3Parse.parseMP3(new ByteArrayInputStream(resource));
+
         if (type.equals("audio/mpeg") && validateMetadata(metadataMap)) {
             try {
                 retryTemplate.execute(context -> {
@@ -63,7 +75,7 @@ public class ResourceProcessorController {
     private byte[] sendResourceGetRequest(int id) throws ResourceAccessException {
         counter_resource++;
         LOGGER.info("Sending resource request ... " + "attempt " + counter_resource);
-        var url = "http://resource-app:9090/resources/" + id;
+        final String url = getServiceInstancesByApplicationName(resourceServiceName) + "/resources/" + id;
         return restTemplate.getForObject(url, byte[].class);
     }
 
@@ -82,7 +94,8 @@ public class ResourceProcessorController {
         body.put("resourceId", String.valueOf(id));
 
         final var request = new HttpEntity<>(body, headers);
-        restTemplate.postForObject("http://song-app:8080/songs", request, String.class);
+        final String url = getServiceInstancesByApplicationName(songServiceName) + "/songs";
+        restTemplate.postForObject(url, request, String.class);
         LOGGER.info("Song request has been sent");
     }
 
@@ -97,5 +110,13 @@ public class ResourceProcessorController {
         return metadataMap.get(SONG_TITLE) != null && metadataMap.get(SONG_ARTIST) != null
                && metadataMap.get(SONG_ALBUM) != null && metadataMap.get(SONG_LENGTH) != null
                 && metadataMap.get(SONG_YEAR) != null;
+    }
+
+    private String getServiceInstancesByApplicationName(String serviceName) {
+        List<ServiceInstance> instanceList = discoveryClient.getInstances(serviceName);
+        ServiceInstance serviceInstance = instanceList.get(0);
+        //for more then 1 instances
+        //ServiceInstance serviceInstance = instanceList.get(new Random().nextInt(instanceList.size()));
+        return serviceInstance.getUri().toString();
     }
 }
