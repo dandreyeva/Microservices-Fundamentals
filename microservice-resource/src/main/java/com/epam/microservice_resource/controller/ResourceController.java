@@ -15,7 +15,6 @@ import software.amazon.awssdk.services.s3.model.*;
 import java.io.IOException;
 import java.util.*;
 
-
 @RestController
 @Validated
 @RequestMapping("/resources")

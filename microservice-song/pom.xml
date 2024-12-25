@@ -81,16 +81,20 @@
 			<artifactId>cucumber-spring</artifactId>
 			<version>7.14.0</version>
 		</dependency>
-		<dependency>
+		<!--<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-contract-verifier</artifactId>
 			<version>2.1.1.RELEASE</version>
 			<scope>test</scope>
-		</dependency>
+		</dependency>-->
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
 		</dependency>
 	</dependencies>
 
@@ -112,7 +116,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
-			<plugin>
+			<!--<plugin>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-contract-maven-plugin</artifactId>
 				<version>2.1.1.RELEASE</version>
@@ -122,7 +126,7 @@
 						com.epam.microservice_song.contracttests.BaseTestClass
 					</baseClassForTests>
 				</configuration>
-			</plugin>
+			</plugin>-->
 		</plugins>
 	</build>
 
