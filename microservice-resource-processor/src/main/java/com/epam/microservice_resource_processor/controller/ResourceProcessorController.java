@@ -1,5 +1,6 @@
 package com.epam.microservice_resource_processor.controller;
 
+import com.epam.microservice_resource_processor.service.MessageService;
 import com.epam.microservice_resource_processor.utils.Mp3Parse;
 import org.apache.tika.Tika;
 import org.slf4j.Logger;
@@ -34,13 +35,15 @@ public class ResourceProcessorController {
     @Value("${spring.application.microservice-resource.name}")
     private String resourceServiceName;
     private DiscoveryClient discoveryClient;
+    private MessageService messageService;
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceProcessorController.class);
 
     public ResourceProcessorController(RestTemplate restTemplate, RetryTemplate retryTemplate,
-                                       DiscoveryClient discoveryClient) {
+                                       DiscoveryClient discoveryClient, MessageService messageService) {
         this.restTemplate = restTemplate;
         this.retryTemplate = retryTemplate;
         this.discoveryClient = discoveryClient;
+        this.messageService = messageService;
     }
     @RabbitListener(queues = ("resourceIdQueue"))
     public void receiveProduct(String message) {
@@ -62,6 +65,7 @@ public class ResourceProcessorController {
                 retryTemplate.execute(context -> {
                             sendSongPostRequest(metadataMap, Integer.parseInt(message));
                             return true;});
+                messageService.sendQueueMessage("processedResourceId", message);
             } catch (ResourceAccessException exception) {
                 throw new ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR, "Song service is unavailable");
@@ -79,7 +83,7 @@ public class ResourceProcessorController {
         return restTemplate.getForObject(url, byte[].class);
     }
 
-    private void sendSongPostRequest(Map<String, String> metadataMap, int id) throws ResourceAccessException {
+    private String sendSongPostRequest(Map<String, String> metadataMap, int id) throws ResourceAccessException {
         counter_song++;
         LOGGER.info("Sending song request ... " + "attempt " + counter_song);
         final var headers = new HttpHeaders();
@@ -95,8 +99,9 @@ public class ResourceProcessorController {
 
         final var request = new HttpEntity<>(body, headers);
         final String url = getServiceInstancesByApplicationName(songServiceName) + "/songs";
-        restTemplate.postForObject(url, request, String.class);
+        String idSong = restTemplate.postForObject(url, request, String.class);
         LOGGER.info("Song request has been sent");
+        return idSong;
     }
 
     /*private void sendSongDeleteRequest(String id) throws ResourceAccessException {
