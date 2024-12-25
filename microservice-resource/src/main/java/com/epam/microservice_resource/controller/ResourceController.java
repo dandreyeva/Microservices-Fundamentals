@@ -4,6 +4,7 @@ import com.epam.microservice_resource.model.Resource;
 import com.epam.microservice_resource.service.MessageService;
 import com.epam.microservice_resource.service.ResourceService;
 import org.apache.tika.Tika;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.validation.annotation.Validated;
@@ -22,8 +23,10 @@ public class ResourceController {
 
     private ResourceService resourceService;
     private S3Client s3Client;
-    @Value("${bucket.name}")
-    private String bucketName;
+    @Value("${bucket.name.stage}")
+    private String bucketNameStage;
+    @Value("${bucket.name.permanent}")
+    private String bucketNamePermanent;
     private MessageService messageService;
 
 
@@ -43,7 +46,7 @@ public class ResourceController {
         if (keyName != null && type.equals("audio/mpeg")) {
             try {
                 PutObjectResponse response = s3Client.putObject(PutObjectRequest.builder()
-                                .bucket(bucketName)
+                                .bucket(bucketNameStage)
                                 .key(keyName)
                                 .build(),
                         software.amazon.awssdk.core.sync.RequestBody.fromBytes(audioData));
@@ -57,6 +60,7 @@ public class ResourceController {
             Map<String, String> responseBody;
             var resource = new Resource();
             resource.setName(keyName);
+            resource.setStage("STAGING");
             var  id = resourceService.saveResource(resource).getId().toString();
 
             Boolean result = messageService.sendQueueMessage("resourceIdQueue", id);
@@ -69,8 +73,8 @@ public class ResourceController {
         }
     }
 
-    @GetMapping(value = "/{id}", produces = "audio/mpeg")
-    public ResponseEntity<byte[]> getResourceById(@PathVariable(value = "id") int resourceId) {
+   // @GetMapping(value = "/{id}", produces = "audio/mpeg")
+    public ResponseEntity<byte[]> getResourceById(int resourceId, String bucketName) {
         if (resourceId > 0) {
             var resource = resourceService.getResourceById(resourceId);
             if (resource.isPresent()) {
@@ -94,8 +98,7 @@ public class ResourceController {
 
     }
 
-    @DeleteMapping
-    public ResponseEntity<Map<String, List<Integer>>> removeResourcesById(@RequestParam String id) {
+    public ResponseEntity<Map<String, List<Integer>>> removeResourcesById(String id, String bucketName) {
         var idList = id.split(",");
         if (validateId(id)) {
             Map<String, List<Integer>> responseBody = new HashMap<>();
@@ -115,6 +118,27 @@ public class ResourceController {
             return new ResponseEntity<>(responseBody, HttpStatus.OK);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please, check the request");
+        }
+    }
+
+    @RabbitListener(queues = ("processedResourceId"))
+    public void getSongSavingResult(String resourceId) {
+        Resource resource = resourceService.getResourceById(Integer.parseInt(resourceId)).orElse(null);
+        resource.setStage("PERMANENT");
+        byte[] audioData = getResourceById(Integer.parseInt(resourceId), bucketNameStage).getBody();
+
+        try {
+            s3Client.putObject(PutObjectRequest.builder()
+                            .bucket(bucketNamePermanent)
+                            .key(resource.getName())
+                            .build(),
+                    software.amazon.awssdk.core.sync.RequestBody.fromBytes(audioData));
+            removeResourcesById(resourceId, bucketNameStage);
+            resourceService.saveResource(resource);
+        } catch (S3Exception e) {
+            System.exit(1);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY, "Please, check S3 bucket settings");
         }
     }
 

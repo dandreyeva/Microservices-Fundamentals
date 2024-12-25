@@ -2,7 +2,9 @@ package com.epam.microservice_storage.service;
 
 import com.epam.microservice_storage.model.Storage;
 import com.epam.microservice_storage.repo.StorageRepository;
+import org.springframework.stereotype.Service;
 
+@Service
 public class StorageService {
 
     private StorageRepository storageRepository;

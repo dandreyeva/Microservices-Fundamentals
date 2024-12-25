@@ -150,7 +150,7 @@ services:
     healthcheck:
       test: curl --fail http://localhost:8780/ || exit 1
     build:
-      context: microservice_storage
+      context: microservice-storage
       dockerfile: Dockerfile
     ports:
       - "8780:8780"
