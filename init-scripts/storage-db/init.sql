@@ -1,5 +1,3 @@
-CREATE TABLE storage ( id SERIAL PRIMARY KEY, storage_type VARCHAR(100), bucket VARCHAR(100), path INTEGER REFERENCES path(id) );
-CREATE TABLE path (id SERIAL PRIMARY KEY, path VARCHAR(100))
-
-INSERT INTO storage (storage_type) VALUES ("STAGING"));
-INSERT INTO storage (storage_type) VALUES ("PERMANENT"));
+CREATE TABLE storage (storage_type VARCHAR(100) PRIMARY KEY, bucket VARCHAR(100), path VARCHAR(100) );
+INSERT INTO storage (storage_type, bucket) VALUES ('STAGING', 'song-bucket-staging');
+INSERT INTO storage (storage_type, bucket) VALUES ('PERMANENT', 'song-bucket-permanent');

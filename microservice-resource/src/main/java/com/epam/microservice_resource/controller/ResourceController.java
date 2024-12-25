@@ -121,7 +121,7 @@ public class ResourceController {
         }
     }
 
-    @RabbitListener(queues = ("processedResourceId"))
+    @RabbitListener(queues = ("processedResourceIdQueue"))
     public void getSongSavingResult(String resourceId) {
         Resource resource = resourceService.getResourceById(Integer.parseInt(resourceId)).orElse(null);
         resource.setStage("PERMANENT");

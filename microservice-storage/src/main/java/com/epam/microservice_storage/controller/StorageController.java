@@ -30,8 +30,16 @@ public class StorageController {
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Integer>> createStorage(@RequestBody StorageRequestDTO storageRequest) {
         Map<String, Integer> responseBody;
+        int id;
+        String type = storageRequest.getStorageType();
         if (validateRequest(storageRequest)) {
-            int id = storageService.saveStorage(storageMapper.toStorage(storageRequest));
+            if (storageService.existStorage(type)) {
+                Storage storage = storageService.findStorageByType(type);
+                storage.getPath().add(storageRequest.getPath());
+                id = storage.getId();
+            } else {
+                id = storageService.saveStorage(storageMapper.toStorage(storageRequest));
+            }
             responseBody = Map.of("id", id);
             return new ResponseEntity<>(responseBody, HttpStatus.OK);
         } else {
@@ -57,11 +65,32 @@ public class StorageController {
                     deletedList.add(intId);
                 }
             }
-            responseBody.put("id", deletedList);
+            responseBody.put("idDeletedStorages", deletedList);
             return new ResponseEntity<>(responseBody, HttpStatus.OK);
         } else {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please, check the request");
         }
+    }
+
+    @DeleteMapping("/{type}")
+    public ResponseEntity<Map<String, List<Integer>>> removeResourceFromStorage(@RequestParam String path, @PathVariable(value = "type") String type) {
+        Map<String, List<Integer>> responseBody = new HashMap<>();
+        List<Integer> deletedList = new ArrayList<>();
+        if (storageService.existStorage(type)) {
+            Storage storage = storageService.findStorageByType(type);
+            List<String> pathList = storage.getPath();
+            if (pathList.contains(path)) {
+                pathList.remove(path);
+            }
+            if (pathList.isEmpty()) {
+                storageService.removeStorageByType(type);
+            } else {
+                storageService.saveStorage(storage);
+            }
+
+        }
+        responseBody.put("idDeletedStorages", deletedList);
+        return new ResponseEntity<>(responseBody, HttpStatus.OK);
     }
 
     private boolean validateRequest(StorageRequestDTO storageRequest) {

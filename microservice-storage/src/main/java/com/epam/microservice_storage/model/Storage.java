@@ -2,6 +2,9 @@ package com.epam.microservice_storage.model;
 
 import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "storage")
 public class Storage {
@@ -12,7 +15,7 @@ public class Storage {
     @Column(name = "storage_type")
     private String storageType;
     private String bucket;
-    private String path;
+    private List<String> path = new ArrayList<>();
 
     public int getId() {
         return id;
@@ -38,11 +41,11 @@ public class Storage {
         this.bucket = bucket;
     }
 
-    public String getPath() {
+    public List<String> getPath() {
         return path;
     }
 
     public void setPath(String path) {
-        this.path = path;
+        getPath().add(path);
     }
 }

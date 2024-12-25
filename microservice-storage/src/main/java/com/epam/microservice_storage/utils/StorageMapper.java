@@ -11,6 +11,7 @@ public class StorageMapper {
         Storage storage  = new Storage();
         storage.setStorageType(storageRequestDTO.getStorageType());
         storage.setBucket(storageRequestDTO.getBucket());
+
         storage.setPath(storageRequestDTO.getPath());
         return storage;
     }

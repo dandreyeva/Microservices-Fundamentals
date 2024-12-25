@@ -28,4 +28,16 @@ public class StorageService {
     public boolean existById(int id) {
         return storageRepository.existsById(id);
     }
+
+    public boolean existStorage(String type) {
+        return storageRepository.findStorageByStorageType(type) != null;
+    }
+
+    public Storage findStorageByType(String type) {
+        return storageRepository.findStorageByStorageType(type);
+    }
+
+    public void removeStorageByType(String type) {
+        storageRepository.removeStorageByStorageType(type);
+    }
 }

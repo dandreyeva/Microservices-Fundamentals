@@ -6,4 +6,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface StorageRepository extends CrudRepository<Storage, Integer> {
+
+    public Storage findStorageByStorageType(String type);
+
+    public void removeStorageByStorageType(String storageType);
 }
