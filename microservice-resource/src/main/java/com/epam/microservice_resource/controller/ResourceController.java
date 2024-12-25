@@ -34,7 +34,7 @@ public class ResourceController {
         this.messageService = messageService;
     }
 
-    @PostMapping(consumes = "audio/mpeg", produces = "application/json")
+    @PostMapping(consumes = "audio/mpeg", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, String>> createResources(@RequestBody byte[] audioData,
                                                                 @RequestHeader("fileName") String keyName) {
         var tika = new Tika();

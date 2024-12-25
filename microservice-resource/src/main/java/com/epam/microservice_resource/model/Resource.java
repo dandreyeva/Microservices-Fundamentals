@@ -9,6 +9,7 @@ public class Resource {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
     private String name;
+    private String stage;
 
     public Integer getId() {
         return id;
@@ -24,5 +25,13 @@ public class Resource {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getStage() {
+        return stage;
+    }
+
+    public void setStage(String stage) {
+        this.stage = stage;
     }
 }

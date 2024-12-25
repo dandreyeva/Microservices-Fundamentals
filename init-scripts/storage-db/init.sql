@@ -1,0 +1,1 @@
+CREATE TABLE storage ( id SERIAL PRIMARY KEY, storage_type VARCHAR(100), bucket VARCHAR(100), path VARCHAR(100);
