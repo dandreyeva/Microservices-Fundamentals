@@ -36,7 +36,7 @@ public class StorageController {
             if (storageService.existStorage(type)) {
                 Storage storage = storageService.findStorageByType(type);
                 storage.getPath().add(storageRequest.getPath());
-                id = storage.getId();
+                id = storageService.saveStorage(storage);
             } else {
                 id = storageService.saveStorage(storageMapper.toStorage(storageRequest));
             }

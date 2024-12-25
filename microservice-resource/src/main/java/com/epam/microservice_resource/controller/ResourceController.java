@@ -6,9 +6,13 @@ import com.epam.microservice_resource.service.ResourceService;
 import org.apache.tika.Tika;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.*;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -27,14 +31,20 @@ public class ResourceController {
     private String bucketNameStage;
     @Value("${bucket.name.permanent}")
     private String bucketNamePermanent;
+    @Value("${spring.application.microservice-storage.name}")
+    private String storageServiceName;
     private MessageService messageService;
+    private DiscoveryClient discoveryClient;
+    private RestTemplate restTemplate;
 
 
     public ResourceController(ResourceService resourceService,
-                              S3Client s3Client, MessageService messageService) {
+                              S3Client s3Client, MessageService messageService, DiscoveryClient discoveryClient, RestTemplate restTemplate) {
         this.resourceService = resourceService;
         this.s3Client = s3Client;
         this.messageService = messageService;
+        this.discoveryClient = discoveryClient;
+        this.restTemplate = restTemplate;
     }
 
     @PostMapping(consumes = "audio/mpeg", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -135,11 +145,26 @@ public class ResourceController {
                     software.amazon.awssdk.core.sync.RequestBody.fromBytes(audioData));
             removeResourcesById(resourceId, bucketNameStage);
             resourceService.saveResource(resource);
+            sendDeleteResourceFromStorageRequest(resource.getName(), bucketNameStage);
         } catch (S3Exception e) {
             System.exit(1);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Please, check S3 bucket settings");
         }
+    }
+
+    private void sendDeleteResourceFromStorageRequest(String path, String storageType) throws ResourceAccessException {
+        final String url = getServiceInstancesByApplicationName(storageServiceName) + "/storages" + "/" + storageType +
+                "?path=" + path;
+        final var headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        restTemplate.delete(url);
+    }
+
+    private String getServiceInstancesByApplicationName(String serviceName) {
+        List<ServiceInstance> instanceList = discoveryClient.getInstances(serviceName);
+        ServiceInstance serviceInstance = instanceList.get(0);
+        return serviceInstance.getUri().toString();
     }
 
     private void deleteMultipleObjects(String bucketName, List<String> deletedListS3){
