@@ -36,6 +36,11 @@ public class ApplicationConfiguration {
                 .build();
     }
 
+    @Bean
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        return builder.build();
+    }
+
     private AwsCredentialsProvider amazonAWSCredentialsProvider() {
         return StaticCredentialsProvider.create(AwsBasicCredentials.create(awsAccessKey, awsSecretKey));
     }

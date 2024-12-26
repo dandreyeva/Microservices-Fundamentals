@@ -3,7 +3,10 @@ package com.epam.microservice_resource.controller;
 import com.epam.microservice_resource.model.Resource;
 import com.epam.microservice_resource.service.MessageService;
 import com.epam.microservice_resource.service.ResourceService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.apache.tika.Tika;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.ServiceInstance;
@@ -36,6 +39,8 @@ public class ResourceController {
     private MessageService messageService;
     private DiscoveryClient discoveryClient;
     private RestTemplate restTemplate;
+    private byte[] audioData;
+    private static final Logger LOGGER = LoggerFactory.getLogger(ResourceController.class);
 
 
     public ResourceController(ResourceService resourceService,
@@ -55,12 +60,12 @@ public class ResourceController {
 
         if (keyName != null && type.equals("audio/mpeg")) {
             try {
-                PutObjectResponse response = s3Client.putObject(PutObjectRequest.builder()
+                this.audioData = audioData;
+                s3Client.putObject(PutObjectRequest.builder()
                                 .bucket(bucketNameStage)
                                 .key(keyName)
                                 .build(),
                         software.amazon.awssdk.core.sync.RequestBody.fromBytes(audioData));
-                response.responseMetadata();
             } catch (S3Exception e) {
                 System.exit(1);
                 throw new ResponseStatusException(
@@ -83,8 +88,9 @@ public class ResourceController {
         }
     }
 
-   // @GetMapping(value = "/{id}", produces = "audio/mpeg")
-    public ResponseEntity<byte[]> getResourceById(int resourceId, String bucketName) {
+    @GetMapping(value = "/{id}", produces = "audio/mpeg")
+    public ResponseEntity<byte[]> getResourceById(@PathVariable(value = "id") int resourceId) {
+        String bucketName = "song-bucket-staging";
         if (resourceId > 0) {
             var resource = resourceService.getResourceById(resourceId);
             if (resource.isPresent()) {
@@ -108,35 +114,18 @@ public class ResourceController {
 
     }
 
-    public ResponseEntity<Map<String, List<Integer>>> removeResourcesById(String id, String bucketName) {
-        var idList = id.split(",");
-        if (validateId(id)) {
-            Map<String, List<Integer>> responseBody = new HashMap<>();
-            List<Integer> deletedList = new ArrayList<>();
-            List<String> deletedListS3 = new ArrayList<>();
-            for (var s : idList) {
-                var intId = Integer.valueOf(s);
-                if (resourceService.existById(intId)) {
-                    var resourceName = resourceService.getResourceById(intId).get().getName();
-                    deletedListS3.add(resourceName);
-                    resourceService.removeResourceById(intId);
-                    deletedList.add(intId);
-                }
-            }
-            deleteMultipleObjects(bucketName, deletedListS3);
-            responseBody.put("id", deletedList);
-            return new ResponseEntity<>(responseBody, HttpStatus.OK);
-        } else {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please, check the request");
-        }
+    public void removeResourcesById(String id, String bucketName) {
+        resourceService.removeResourceById(Integer.parseInt(id));
+        List<String> deletedListS3 = new ArrayList<>(Integer.parseInt(id));
+        deleteMultipleObjects(bucketName, deletedListS3);
     }
 
     @RabbitListener(queues = ("processedResourceIdQueue"))
+    @CircuitBreaker(name = "store", fallbackMethod = "fallbackForStoringResource")
     public void getSongSavingResult(String resourceId) {
         Resource resource = resourceService.getResourceById(Integer.parseInt(resourceId)).orElse(null);
         resource.setStage("PERMANENT");
-        byte[] audioData = getResourceById(Integer.parseInt(resourceId), bucketNameStage).getBody();
-
+        LOGGER.info("audioData" + audioData);
         try {
             s3Client.putObject(PutObjectRequest.builder()
                             .bucket(bucketNamePermanent)
@@ -151,6 +140,10 @@ public class ResourceController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Please, check S3 bucket settings");
         }
+    }
+
+    private void fallbackForStoringResource(Throwable ex) {
+        LOGGER.info("Fallback CircuitBreaker" + ex);
     }
 
     private void sendDeleteResourceFromStorageRequest(String path, String storageType) throws ResourceAccessException {
@@ -186,13 +179,5 @@ public class ResourceController {
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY, "Please, check S3 bucket settings");
         }
-    }
-
-    private boolean validateId(String id) {
-        for(var i = 0; i < id.length(); i++){
-            if (Character.isLetter(id.charAt(i)))
-                return false;
-        }
-        return id.length() <= 200;
     }
 }

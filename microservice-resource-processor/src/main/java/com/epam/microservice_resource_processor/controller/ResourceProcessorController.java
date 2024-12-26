@@ -65,7 +65,8 @@ public class ResourceProcessorController {
                 retryTemplate.execute(context -> {
                             sendSongPostRequest(metadataMap, Integer.parseInt(message));
                             return true;});
-                messageService.sendQueueMessage("processedResourceId", message);
+                messageService.sendQueueMessage("processedResourceIdQueue", message);
+                LOGGER.info("Sending to processedResourceId" + "id " + message);
             } catch (ResourceAccessException exception) {
                 throw new ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR, "Song service is unavailable");
@@ -104,13 +105,6 @@ public class ResourceProcessorController {
         return idSong;
     }
 
-    /*private void sendSongDeleteRequest(String id) throws ResourceAccessException {
-        final var url = songServiceUrl + "?id=" +id;
-        final var headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        restTemplate.delete(url);
-    }*/
-
     private boolean validateMetadata(Map<String, String> metadataMap) {
         return metadataMap.get(SONG_TITLE) != null && metadataMap.get(SONG_ARTIST) != null
                && metadataMap.get(SONG_ALBUM) != null && metadataMap.get(SONG_LENGTH) != null
@@ -120,8 +114,6 @@ public class ResourceProcessorController {
     private String getServiceInstancesByApplicationName(String serviceName) {
         List<ServiceInstance> instanceList = discoveryClient.getInstances(serviceName);
         ServiceInstance serviceInstance = instanceList.get(0);
-        //for more then 1 instances
-        //ServiceInstance serviceInstance = instanceList.get(new Random().nextInt(instanceList.size()));
         return serviceInstance.getUri().toString();
     }
 }
