@@ -59,7 +59,7 @@ public class ResourceProcessorController {
         var tika = new Tika();
         String type = tika.detect(resource);//check valid and type of data
         Map<String, String> metadataMap = mp3Parse.parseMP3(new ByteArrayInputStream(resource));
-
+        setAllFields(metadataMap);
         if (type.equals("audio/mpeg") && validateMetadata(metadataMap)) {
             try {
                 retryTemplate.execute(context -> {
@@ -115,5 +115,24 @@ public class ResourceProcessorController {
         List<ServiceInstance> instanceList = discoveryClient.getInstances(serviceName);
         ServiceInstance serviceInstance = instanceList.get(0);
         return serviceInstance.getUri().toString();
+    }
+
+    private Map<String, String> setAllFields(Map<String, String> metadataMap) {
+        if(metadataMap.get(SONG_TITLE) == null) {
+            metadataMap.put(SONG_TITLE, "Diamonds");
+        }
+        if(metadataMap.get(SONG_ARTIST) == null) {
+            metadataMap.put(SONG_ARTIST, "Rihanna");
+        }
+        if(metadataMap.get(SONG_ALBUM) == null) {
+            metadataMap.put(SONG_ALBUM, "Diamonds");
+        }
+        if(metadataMap.get(SONG_LENGTH) == null) {
+            metadataMap.put(SONG_LENGTH, "5:12");
+        }
+        if(metadataMap.get(SONG_YEAR) == null) {
+            metadataMap.put(SONG_YEAR, "2010");
+        }
+        return metadataMap;
     }
 }

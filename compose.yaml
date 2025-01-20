@@ -167,6 +167,18 @@ services:
     networks:
       - ls
 
+  auth-server:
+    container_name: "${AUTH_SERVER_NAME}"
+    build:
+      context: auth-server
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
   localstack:
     container_name: "${LOCALSTACK_DOCKER_NAME}"
     image: localstack/localstack:s3-latest
