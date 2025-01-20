@@ -7,4 +7,6 @@ s3_client = boto3.client(
     aws_secret_access_key="test_secret_access_key"
 )
 
-s3_client.create_bucket(Bucket="song-bucket")
+s3_client.create_bucket(Bucket="song-bucket-staging")
+
+s3_client.create_bucket(Bucket="song-bucket-permanent")

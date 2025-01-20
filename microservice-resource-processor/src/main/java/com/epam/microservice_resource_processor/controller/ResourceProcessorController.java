@@ -1,5 +1,6 @@
 package com.epam.microservice_resource_processor.controller;
 
+import com.epam.microservice_resource_processor.service.MessageService;
 import com.epam.microservice_resource_processor.utils.Mp3Parse;
 import org.apache.tika.Tika;
 import org.slf4j.Logger;
@@ -34,13 +35,15 @@ public class ResourceProcessorController {
     @Value("${spring.application.microservice-resource.name}")
     private String resourceServiceName;
     private DiscoveryClient discoveryClient;
+    private MessageService messageService;
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceProcessorController.class);
 
     public ResourceProcessorController(RestTemplate restTemplate, RetryTemplate retryTemplate,
-                                       DiscoveryClient discoveryClient) {
+                                       DiscoveryClient discoveryClient, MessageService messageService) {
         this.restTemplate = restTemplate;
         this.retryTemplate = retryTemplate;
         this.discoveryClient = discoveryClient;
+        this.messageService = messageService;
     }
     @RabbitListener(queues = ("resourceIdQueue"))
     public void receiveProduct(String message) {
@@ -56,12 +59,14 @@ public class ResourceProcessorController {
         var tika = new Tika();
         String type = tika.detect(resource);//check valid and type of data
         Map<String, String> metadataMap = mp3Parse.parseMP3(new ByteArrayInputStream(resource));
-
+        setAllFields(metadataMap);
         if (type.equals("audio/mpeg") && validateMetadata(metadataMap)) {
             try {
                 retryTemplate.execute(context -> {
                             sendSongPostRequest(metadataMap, Integer.parseInt(message));
                             return true;});
+                messageService.sendQueueMessage("processedResourceIdQueue", message);
+                LOGGER.info("Sending to processedResourceId" + "id " + message);
             } catch (ResourceAccessException exception) {
                 throw new ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR, "Song service is unavailable");
@@ -79,7 +84,7 @@ public class ResourceProcessorController {
         return restTemplate.getForObject(url, byte[].class);
     }
 
-    private void sendSongPostRequest(Map<String, String> metadataMap, int id) throws ResourceAccessException {
+    private String sendSongPostRequest(Map<String, String> metadataMap, int id) throws ResourceAccessException {
         counter_song++;
         LOGGER.info("Sending song request ... " + "attempt " + counter_song);
         final var headers = new HttpHeaders();
@@ -95,16 +100,10 @@ public class ResourceProcessorController {
 
         final var request = new HttpEntity<>(body, headers);
         final String url = getServiceInstancesByApplicationName(songServiceName) + "/songs";
-        restTemplate.postForObject(url, request, String.class);
+        String idSong = restTemplate.postForObject(url, request, String.class);
         LOGGER.info("Song request has been sent");
+        return idSong;
     }
-
-    /*private void sendSongDeleteRequest(String id) throws ResourceAccessException {
-        final var url = songServiceUrl + "?id=" +id;
-        final var headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        restTemplate.delete(url);
-    }*/
 
     private boolean validateMetadata(Map<String, String> metadataMap) {
         return metadataMap.get(SONG_TITLE) != null && metadataMap.get(SONG_ARTIST) != null
@@ -115,8 +114,25 @@ public class ResourceProcessorController {
     private String getServiceInstancesByApplicationName(String serviceName) {
         List<ServiceInstance> instanceList = discoveryClient.getInstances(serviceName);
         ServiceInstance serviceInstance = instanceList.get(0);
-        //for more then 1 instances
-        //ServiceInstance serviceInstance = instanceList.get(new Random().nextInt(instanceList.size()));
         return serviceInstance.getUri().toString();
+    }
+
+    private Map<String, String> setAllFields(Map<String, String> metadataMap) {
+        if(metadataMap.get(SONG_TITLE) == null) {
+            metadataMap.put(SONG_TITLE, "Diamonds");
+        }
+        if(metadataMap.get(SONG_ARTIST) == null) {
+            metadataMap.put(SONG_ARTIST, "Rihanna");
+        }
+        if(metadataMap.get(SONG_ALBUM) == null) {
+            metadataMap.put(SONG_ALBUM, "Diamonds");
+        }
+        if(metadataMap.get(SONG_LENGTH) == null) {
+            metadataMap.put(SONG_LENGTH, "5:12");
+        }
+        if(metadataMap.get(SONG_YEAR) == null) {
+            metadataMap.put(SONG_YEAR, "2010");
+        }
+        return metadataMap;
     }
 }

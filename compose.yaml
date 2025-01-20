@@ -39,6 +39,26 @@ services:
     networks:
       - ls
 
+  psql-db-storage:
+    image: postgres:alpine3.20
+    container_name: "${STDB_DOCKER_NAME}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER_ST}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_ST}
+      - POSTGRES_DB=${POSTGRES_DB_ST}
+    volumes:
+      - ./init-scripts/storage-db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres-data-storage:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
   gateway-app:
     container_name: "${GATEWAY_DOCKER_NAME}"
     build:
@@ -125,6 +145,40 @@ services:
     networks:
       - ls
 
+  storage-app:
+    container_name: "${STORAGE_DOCKER_NAME}"
+    healthcheck:
+      test: curl --fail http://localhost:8780/ || exit 1
+    build:
+      context: microservice-storage
+      dockerfile: Dockerfile
+    ports:
+      - "8780:8780"
+    environment:
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL_STORAGE}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME_STORAGE}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD_STORAGE}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=${SPRING_JPA_HIBERNATE_DDL_AUTO_STORAGE}
+    depends_on:
+      psql-db-storage:
+        condition: service_healthy
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
+  auth-server:
+    container_name: "${AUTH_SERVER_NAME}"
+    build:
+      context: auth-server
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
   localstack:
     container_name: "${LOCALSTACK_DOCKER_NAME}"
     image: localstack/localstack:s3-latest
@@ -167,6 +221,40 @@ services:
     networks:
       - ls
 
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9191:9090
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prom_data:/prometheus
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+    dns:
+      - 10.0.2.20
+    networks:
+      - ls
+
+volumes:
+  prom_data:
 
 networks:
   ls:
